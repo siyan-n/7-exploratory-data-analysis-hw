@@ -15,7 +15,23 @@ cities <- c("Charlotte", "Los Angeles", "Houston", "Indianapolis", "Jacksonville
 #> Call the function "read_weather" 
 #> Check by reading/glimpsing a single station's file
 
+library(here)
+here()
 
+data.list <- list.files(
+  path = 'us-weather-history',
+  pattern = "\\.csv$",
+  recursive = TRUE,
+  full.names = FALSE   
+) 
+
+read_weather <- function(x){
+  read_csv(paste0("us-weather-history/", x, ".csv")) %>% 
+    mutate(
+      station = x, 
+      date = as.Date(date)
+    )
+}
 
 # QUESTION 2
 #> Use map() and your new function to read in all 10 stations
@@ -23,8 +39,8 @@ cities <- c("Charlotte", "Los Angeles", "Houston", "Indianapolis", "Jacksonville
 #> you will need to do so in the code with bind_rows()
 #> Save the resulting dataset to "ds"
 
-
-
+ds <- map(stations, read_weather)%>%
+  bind_rows()
 
 # QUESTION 3
 #> Make a factor called "city" based on the station variable
@@ -33,25 +49,42 @@ cities <- c("Charlotte", "Los Angeles", "Houston", "Indianapolis", "Jacksonville
 #> and save the results to a new tibble
 #> Write a logical statement that would trigger a warning if any city did not have 365 days
 
+ds <- ds %>%
+  mutate(city = factor(station,
+                       levels = stations,
+                       labels = cities))
 
-
+days_city <- ds %>%
+  group_by(city) %>%
+  summarise(days_c = n_distinct(date))
+  if (any(days_city$days_c < 365)) {
+    print(str_glue("Oh no!: {(days_city$city)} has less than 365 days"))
+  } 
 
 # QUESTION 4
 #> In question 3, all of the cities do have 365 days of data, so how would you know
 #> if your check worked? Create a test to mess up the dataset to make sure that your
 #> check does throw an error if the conditions aren't met
 
+days_city_test <- days_city %>%
+  mutate(days_c = days_c - sample(0:3, n(), replace = TRUE))
+  if (any(days_city_test$days_c < 365)) {
+  print(str_glue("Oh no!: {(days_city_test$city)} has less than 365 days"))
+} 
 
-
+# QUESTION 5
 #> At this point, your data should look like the "compiled_data.csv" file
 #> in data-clean. If it isn't, read in that file to use for the remaining
 #> questions so that you have the right data to work with.
 
-# QUESTION 5
+compiled_data <- read_csv("data-clean/compiled_data.csv")
+
+# QUESTION 6
 #> Find a function that lets you pull out the month from the date 
 #> and make "month" a factor as a new variable in ds
 
-
+ds <- ds %>%
+  mutate(month = factor(sub("^\\d{4}-(\\d{2})-.*", "\\1", date)))
 
 # QUESTION 7
 #> Use rstatix to check if there are any outliers for actual_mean_temp.
@@ -60,12 +93,24 @@ cities <- c("Charlotte", "Los Angeles", "Houston", "Indianapolis", "Jacksonville
 #> get_summary_stats() to get the mean and SE for actual_mean_temp
 #> by month.
 
+actual_mean_temp_outliers <- ds %>% 
+  rstatix::identify_outliers(actual_mean_temp)
+actual_mean_temp_outliers
+
+ds %>%
+  filter(!paste(city, station, date) %in% 
+           paste(actual_mean_temp_outliers$city, 
+                 actual_mean_temp_outliers$station, 
+                 actual_mean_temp_outliers$date)) %>% 
+  group_by(month) %>%
+  rstatix::get_summary_stats(actual_mean_temp, type = "mean_se")
 
 # QUESTION 8
 #> Use the Data Explorer package to plot boxplots of all of the numeric variables in the dataset
 #> grouped by city, then do the same thing grouped by month. 
 #> Finally, use plot_correlation to investigate correlations between the continuous variables only
 #> Check the documentation for plot_correlation for an easy way to do this
+
 
 
 # QUESTION 9
